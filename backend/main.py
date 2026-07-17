@@ -26,6 +26,22 @@ ANGLES = [
 ]
 
 CTA_DURATION_FRAMES = 90  # 3 giây end-card chốt đơn
+ARCHIVE_RETENTION_DAYS = 30  # Tự động xoá bản archive cũ hơn số ngày này để đỡ tốn ổ đĩa
+
+
+def cleanup_old_archives(output_videos_dir, retention_days=ARCHIVE_RETENTION_DAYS):
+    """Xoá các thư mục output_videos/archive/<timestamp> cũ hơn retention_days,
+    tránh tích rác ổ đĩa dần qua nhiều lần chạy --force."""
+    archive_root = os.path.join(output_videos_dir, "archive")
+    if not os.path.isdir(archive_root):
+        return
+
+    cutoff = time.time() - retention_days * 86400
+    for name in os.listdir(archive_root):
+        folder = os.path.join(archive_root, name)
+        if os.path.isdir(folder) and os.path.getmtime(folder) < cutoff:
+            shutil.rmtree(folder)
+            print(f"🧹 Đã xoá archive cũ (>{retention_days} ngày): {folder}")
 
 
 def parse_args():
@@ -89,6 +105,7 @@ def main():
     renderer_dir = os.path.join(os.path.dirname(__file__), "..", "renderer")
     output_videos_dir = os.path.join(os.path.dirname(__file__), "..", "output_videos")
     os.makedirs(output_videos_dir, exist_ok=True)
+    cleanup_old_archives(output_videos_dir)
 
     bgm_dir = os.path.join(os.path.dirname(__file__), "..", "renderer", "public", "bgm")
     os.makedirs(bgm_dir, exist_ok=True)

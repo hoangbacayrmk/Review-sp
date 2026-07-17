@@ -1,5 +1,6 @@
 import os
 import time
+import concurrent.futures
 import requests
 
 ELEVEN_TTS_URL = "https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
@@ -98,34 +99,47 @@ def generate_voiceover(text: str, filename: str, voice_settings: dict = None):
     return None
 
 
+def _generate_one_scene(i: int, block: dict, angle_id: str, voice_settings: dict, renderer_public: str, total: int):
+    from mutagen.mp3 import MP3
+
+    text = block.get("voice_text", block.get("text", ""))
+    filename = f"voice_{angle_id}_{i}.mp3"
+
+    print(f"[3.{i + 1}] Đang tạo Voiceover cho cảnh {i + 1}/{total}...")
+    audio_path = generate_voiceover(text, filename, voice_settings=voice_settings)
+
+    duration_frames = 150  # fallback ~5s nếu TTS lỗi, để cảnh không bị duration 0
+    if audio_path:
+        full_path = os.path.join(renderer_public, audio_path)
+        if os.path.exists(full_path):
+            audio = MP3(full_path)
+            duration_frames = max(1, round(audio.info.length * 30))  # 30 FPS
+
+    return i, {"audioPath": audio_path, "durationFrames": duration_frames}
+
+
 def generate_scene_voiceovers(text_blocks: list, angle_id: str) -> list:
     """
     Sinh audio RIÊNG cho từng phân cảnh (thay vì gộp 1 file rồi đoán thời lượng theo tỷ lệ
     ký tự). Nhờ vậy mỗi cảnh có thời lượng CHÍNH XÁC TUYỆT ĐỐI khớp với giọng đọc thật,
     không còn bị lệch hình/lệch phụ đề với lời thoại.
 
+    Các cảnh được gọi SONG SONG (tối đa 3 request cùng lúc) để rút ngắn tổng thời gian chờ
+    ElevenLabs, thay vì xếp hàng tuần tự từng cảnh một.
+
     Trả về list dict: {"audioPath": str|None, "durationFrames": int}, cùng thứ tự text_blocks.
     """
-    from mutagen.mp3 import MP3
-
     voice_settings = ANGLE_VOICE_SETTINGS.get(angle_id, DEFAULT_VOICE_SETTINGS)
     renderer_public = os.path.join(os.path.dirname(__file__), "..", "renderer", "public")
 
-    results = []
-    for i, block in enumerate(text_blocks):
-        text = block.get("voice_text", block.get("text", ""))
-        filename = f"voice_{angle_id}_{i}.mp3"
-
-        print(f"[3.{i + 1}] Đang tạo Voiceover cho cảnh {i + 1}/{len(text_blocks)}...")
-        audio_path = generate_voiceover(text, filename, voice_settings=voice_settings)
-
-        duration_frames = 150  # fallback ~5s nếu TTS lỗi, để cảnh không bị duration 0
-        if audio_path:
-            full_path = os.path.join(renderer_public, audio_path)
-            if os.path.exists(full_path):
-                audio = MP3(full_path)
-                duration_frames = max(1, round(audio.info.length * 30))  # 30 FPS
-
-        results.append({"audioPath": audio_path, "durationFrames": duration_frames})
+    results = [None] * len(text_blocks)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
+        futures = [
+            executor.submit(_generate_one_scene, i, block, angle_id, voice_settings, renderer_public, len(text_blocks))
+            for i, block in enumerate(text_blocks)
+        ]
+        for future in concurrent.futures.as_completed(futures):
+            i, result = future.result()
+            results[i] = result
 
     return results
