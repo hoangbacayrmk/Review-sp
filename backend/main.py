@@ -14,7 +14,7 @@ load_dotenv()
 
 from ai_writer import generate_ad_script
 from audio_engine import generate_scene_voiceovers
-from image_processor import process_image
+from image_upscaler import upscale_image
 
 # DANH SÁCH 5 GÓC ĐỘ (ANGLES) CHO A/B TESTING
 ANGLES = [
@@ -54,19 +54,25 @@ def main():
 
     input_images = []
     remotion_images = []
+    
     for file in os.listdir(input_dir):
         if file.lower().endswith(('.png', '.jpg', '.jpeg', '.webp')):
             src_path = os.path.join(input_dir, file)
-            # Tạo tên file mới đuôi .png vì ảnh đã xóa phông
-            base_name = os.path.splitext(file)[0]
-            new_filename = f"{base_name}_nobg.png"
-            dest_path = os.path.join(public_img_dir, new_filename)
-
-            # Xóa phông bằng AI
-            process_image(src_path, dest_path)
-
-            input_images.append(src_path)  # để Gemini đọc (ảnh gốc để hiểu bối cảnh)
-            remotion_images.append(f"images/{new_filename}")  # để Remotion đọc ảnh đã xóa phông
+            dest_path = os.path.join(public_img_dir, file)
+            
+            # Bỏ qua nếu ảnh này đã được upscale từ trước (chưa bị đè bằng ảnh mới hơn),
+            # tránh chạy lại AI Upscale tốn CPU vô ích ở những lần chạy sau
+            if os.path.exists(dest_path) and os.path.getmtime(dest_path) >= os.path.getmtime(src_path):
+                print(f"⏭️  Đã upscale sẵn, bỏ qua: {file}")
+            else:
+                # Áp dụng AI Upscale để tăng nét ảnh gấp 4 lần trước khi copy
+                success = upscale_image(src_path, dest_path)
+                if not success:
+                    print(f"⚠️ Dùng ảnh gốc vì upscale lỗi: {file}")
+                    shutil.copy2(src_path, dest_path)
+            
+            input_images.append(src_path)  # Để AI đọc viết kịch bản
+            remotion_images.append(f"images/{file}")  # Để Remotion dùng làm cảnh video
 
     if not input_images:
         print("❌ Thư mục trống! Anh hãy copy/tải ảnh sản phẩm từ Shopee, TikTok ném vào thư mục này nhé:")
@@ -137,6 +143,12 @@ def main():
             cap["audioPath"] = audio_info["audioPath"]
             cap["startFrame"] = current_frame
             cap["endFrame"] = current_frame + duration_frames
+            
+            # QUAN TRỌNG: Ghi đè imageIndex để video sử dụng xoay vòng toàn bộ các ảnh 
+            # (POV) vừa được tự động đẻ ra, giúp mỗi cảnh là một bối cảnh khác nhau.
+            if len(remotion_images) > 0:
+                cap["imageIndex"] = i_cap % len(remotion_images)
+                
             current_frame += duration_frames
 
             if i_cap > 0 and sfx_files:

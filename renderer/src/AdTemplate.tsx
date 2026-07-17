@@ -43,15 +43,14 @@ const ANGLE_THEMES: Record<string, { from: string; to: string }> = {
 };
 const DEFAULT_THEME = { from: "#333333", to: "#000000" };
 
-// Các kiểu "khung hình" (crop đa góc) xoay vòng theo thứ tự cảnh, để cùng 1 tấm
+// Các kiểu "khung hình" xoay vòng theo thứ tự cảnh, để cùng 1 tấm
 // ảnh sản phẩm vẫn tạo cảm giác nhiều góc máy khác nhau thay vì lặp y hệt.
-// Cảnh đầu luôn "contain/center" để mở đầu bằng toàn cảnh sản phẩm rõ ràng.
-const FRAMINGS: { position: string; fit: "contain" | "cover" }[] = [
-  { position: "center", fit: "contain" },
-  { position: "top", fit: "cover" },
-  { position: "bottom", fit: "cover" },
-  { position: "left", fit: "cover" },
-  { position: "right", fit: "cover" },
+const FRAMINGS: { position: string }[] = [
+  { position: "center" },
+  { position: "top" },
+  { position: "bottom" },
+  { position: "left" },
+  { position: "right" },
 ];
 
 export const AdTemplate: React.FC<z.infer<typeof adSchema>> = ({
@@ -115,7 +114,7 @@ const SceneContent: React.FC<{
   imgUrl: string;
   fps: number;
   transition?: string;
-  framing: { position: string; fit: "contain" | "cover" };
+  framing: { position: string };
 }> = ({ caption, imgUrl, fps, transition, framing }) => {
   const frame = useCurrentFrame();
 
@@ -170,29 +169,25 @@ const SceneContent: React.FC<{
       {/* Hiệu ứng âm thanh chuyển cảnh */}
       {caption.sfxPath && <Audio src={staticFile(caption.sfxPath)} volume={0.8} />}
 
-      {/* Hộp khung hình cố định để "cover" crop vào từng góc ảnh có ý nghĩa (giả lập
-          nhiều góc máy từ cùng 1 tấm ảnh sản phẩm), thay vì luôn hiện trọn ảnh giống hệt nhau */}
+      {/* Hộp khung hình full màn hình để chứa ảnh không viền đen */}
       <div
         style={{
-          width: "80%",
-          height: "62%",
+          width: "100%",
+          height: "100%",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          overflow: framing.fit === "cover" ? "hidden" : "visible",
+          overflow: "hidden",
         }}
       >
         <Img
           src={imgUrl.startsWith('http') ? imgUrl : staticFile(imgUrl)}
           style={{
             transform: `scale(${finalScale})`,
-            width: framing.fit === "cover" ? "100%" : "auto",
-            height: framing.fit === "cover" ? "100%" : "auto",
-            maxHeight: framing.fit === "contain" ? "100%" : undefined,
-            maxWidth: framing.fit === "contain" ? "100%" : undefined,
-            objectFit: framing.fit,
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
             objectPosition: framing.position,
-            filter: framing.fit === "contain" ? "drop-shadow(0px 30px 40px rgba(0,0,0,1))" : "none",
           }}
         />
       </div>
@@ -225,12 +220,6 @@ const SceneContent: React.FC<{
               config: { damping: 12, mass: 0.8 },
             });
 
-            // Highlight màu xen kẽ cực gắt
-            const isHighlight = i % 2 !== 0;
-            const wordColor = isHighlight
-              ? "linear-gradient(to right, #ff0844, #ffb199)" // Đỏ cam cháy
-              : "linear-gradient(to right, #00f2fe, #4facfe)"; // Xanh biển sâu
-
             return (
               <span
                 key={i}
@@ -238,10 +227,10 @@ const SceneContent: React.FC<{
                   transform: `scale(${wordScale})`,
                   fontSize: "85px",
                   fontWeight: "900",
-                  textShadow: "0px 10px 20px rgba(0,0,0,1)",
-                  background: wordColor,
-                  WebkitBackgroundClip: "text",
-                  WebkitTextFillColor: "transparent",
+                  WebkitTextStroke: "4px rgba(0,0,0,0.95)", // viền đen cứng giúp chữ nổi trên mọi nền
+                  textShadow: "0px 8px 0px rgba(0,0,0,0.9), 0px 14px 18px rgba(0,0,0,0.6)",
+                  // Một màu duy nhất, thống nhất toàn bộ chữ - không xen kẽ nhiều màu
+                  color: "#FFF200", // Vàng chanh cực gắt, tương phản tối đa với mọi nền ảnh
                   lineHeight: 1.2,
                   display: "inline-block"
                 }}
