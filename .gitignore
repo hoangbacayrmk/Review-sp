@@ -1,0 +1,25 @@
+# Môi trường Python / API Keys
+backend/.env
+__pycache__/
+*.pyc
+
+# Quản lý Video / Ảnh đầu ra (File nặng không nên push lên Git)
+output_videos/
+backend/output_data/
+
+# Node & Frontend (Remotion)
+renderer/node_modules/
+renderer/out/
+renderer/public/bgm/*
+renderer/public/sfx/*
+renderer/public/images/*
+renderer/public/voice*.mp3
+
+# Tạm thời giữ cấu trúc thư mục nhưng bỏ qua nội dung
+!renderer/public/bgm/.gitkeep
+!renderer/public/sfx/.gitkeep
+!renderer/public/images/.gitkeep
+
+# Môi trường Editor
+.vscode/
+.DS_Store
